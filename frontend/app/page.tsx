@@ -1,6 +1,12 @@
 "use client";
 
 import { useState } from "react";
+const connectSpotify = async () => {
+  const res = await fetch("http://127.0.0.1:8000/login");
+  const data = await res.json();
+
+  window.location.href = data.auth_url;
+};
 
 const artistData: Record<string, string[]> = {
   Drake: ["Hip-Hop", "Pop"],
@@ -72,6 +78,13 @@ export default function Home() {
         >
           Analyze My Taste
         </button>
+
+        <button
+  onClick={connectSpotify}
+  className="mt-4 ml-4 px-6 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-500"
+>
+  Connect Spotify
+</button>
 
         {Object.keys(results).length > 0 && (
           <div className="mt-8 bg-zinc-900 rounded-2xl p-6">
