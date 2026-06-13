@@ -37,52 +37,52 @@ PERSONALITY_ARCHETYPES = [
     {
         "label": "The Deep Explorer",
         "description": "You go further than most. Niche, layered, and always two steps ahead of the algorithm.",
-        "conditions": lambda d, div, mood: d >= 65 and div >= 6,
+        "conditions": lambda niche, diversity, mood: niche >= 65 and diversity >= 6,
     },
     {
         "label": "The Reflective Dreamer",
         "description": "Atmosphere over energy. You listen to feel, not just to hear.",
-        "conditions": lambda d, div, mood: mood >= 0.55 and d >= 40,
+        "conditions": lambda niche, diversity, mood: mood >= 0.55 and niche >= 40,
     },
     {
         "label": "The Cultural Curator",
         "description": "Your taste crosses borders — genres, languages, eras. You collect sounds like artifacts.",
-        "conditions": lambda d, div, mood: div >= 8,
+        "conditions": lambda niche, diversity, mood: diversity >= 8,
     },
     {
         "label": "The Experimental Wanderer",
         "description": "Patterns bore you. You follow curiosity, not charts.",
-        "conditions": lambda d, div, mood: d >= 70,
+        "conditions": lambda niche, diversity, mood: niche >= 70,
     },
     {
         "label": "The Mood Chaser",
         "description": "Every playlist is a feeling. You curate emotion, not genres.",
-        "conditions": lambda d, div, mood: mood >= 0.6 and div <= 5,
+        "conditions": lambda niche, diversity, mood: mood >= 0.6 and diversity <= 5,
     },
     {
         "label": "The Mainstream Enthusiast",
-        "description": "You know what you like — and so does everyone else. There's power in that.",
-        "conditions": lambda d, div, mood: d <= 30,
+        "description": "You know what you like — and so does everyone else. There is power in that.",
+        "conditions": lambda niche, diversity, mood: niche <= 30,
     },
     {
         "label": "The Genre Hopper",
-        "description": "No loyalty. No ceiling. You're impossible to recommend to.",
-        "conditions": lambda d, div, mood: div >= 7 and d < 65,
+        "description": "No loyalty. No ceiling. You are impossible to recommend to.",
+        "conditions": lambda niche, diversity, mood: diversity >= 7 and niche < 65,
     },
     {
         "label": "The Nostalgia Seeker",
         "description": "The best music has already been made. You know where to find it.",
-        "conditions": lambda d, div, mood: mood >= 0.4 and d < 50,
+        "conditions": lambda niche, diversity, mood: mood >= 0.4 and niche < 50,
     },
     {
         "label": "The Romantic Idealist",
         "description": "Lyrics hit you differently. You listen for the feeling nobody else can name.",
-        "conditions": lambda d, div, mood: mood >= 0.5,
+        "conditions": lambda niche, diversity, mood: mood >= 0.5,
     },
     {
         "label": "The Story Collector",
-        "description": "You'll be the bridge between music and everything else. First adopter energy.",
-        "conditions": lambda d, div, mood: True,
+        "description": "You will be the bridge between music and everything else. First adopter energy.",
+        "conditions": lambda niche, diversity, mood: True,
     },
 ]
 
@@ -102,23 +102,48 @@ ATMOSPHERIC_KEYWORDS = [
     "bollywood",
     "ghazal",
     "qawwali",
+    "romantic",
 ]
+
+GENRE_FALLBACK = {
+    "Pritam": ["bollywood", "filmi", "indian pop"],
+    "Vishal-Shekhar": ["bollywood", "filmi", "indian pop"],
+    "Aditya Rikhari": ["indian indie", "indian pop", "romantic"],
+    "Cigarettes After Sex": ["dream pop", "ambient pop", "indie"],
+    "A.R. Rahman": ["bollywood", "filmi", "classical", "soundtrack"],
+    "Sachin-Jigar": ["bollywood", "filmi", "indian pop"],
+    "Yo Yo Honey Singh": ["desi hip hop", "indian pop", "party"],
+    "Atif Aslam": ["pakistani pop", "romantic", "bollywood"],
+    "Shankar-Ehsaan-Loy": ["bollywood", "filmi", "soundtrack"],
+    "Sonu Nigam": ["bollywood", "filmi", "playback singing"],
+    "Mohit Chauhan": ["bollywood", "romantic", "indian pop"],
+    "Arijit Singh": ["bollywood", "romantic", "filmi"],
+    "Shashwat Sachdev": ["bollywood", "soundtrack", "indian pop"],
+    "Vishal Mishra": ["bollywood", "romantic", "indian pop"],
+    "wave to earth": ["korean indie", "indie", "dream pop"],
+    "Benny Dayal": ["bollywood", "indian pop", "playback singing"],
+    "Jatin-Lalit": ["bollywood", "filmi", "soundtrack"],
+    "Amit Trivedi": ["bollywood", "indie", "soundtrack"],
+    "Salim–Sulaiman": ["bollywood", "filmi", "soundtrack"],
+    "Salim-Sulaiman": ["bollywood", "filmi", "soundtrack"],
+    "Abhijeet": ["bollywood", "playback singing", "filmi"],
+}
 
 
 def compute_mood_score(genre_list: list[str]) -> float:
     if not genre_list:
         return 0.5
 
-    atmospheric = sum(
+    atmospheric_count = sum(
         1
         for genre in genre_list
         if any(keyword in genre.lower() for keyword in ATMOSPHERIC_KEYWORDS)
     )
 
-    return round(atmospheric / len(genre_list), 3)
+    return round(atmospheric_count / len(genre_list), 3)
 
 
-def compute_diversity_score(genre_counts: dict) -> int:
+def compute_diversity_count(genre_counts: dict) -> int:
     return len(genre_counts)
 
 
@@ -177,11 +202,16 @@ def top_artists(token: str):
     artists = []
 
     for item in results.get("items", []):
+        name = item.get("name", "")
+
+        raw_popularity = item.get("popularity")
+        popularity = raw_popularity if raw_popularity is not None else 50
+
         artists.append(
             {
-                "name": item.get("name"),
-                "genres": item.get("genres", []),
-                "popularity": item.get("popularity", 0),
+                "name": name,
+                "genres": item.get("genres") or GENRE_FALLBACK.get(name, []),
+                "popularity": popularity,
                 "image": item.get("images", [{}])[0].get("url")
                 if item.get("images")
                 else None,
@@ -202,20 +232,26 @@ def taste_dna(token: str):
     popularity_scores = []
 
     for item in results.get("items", []):
-        genres = item.get("genres", [])
-        popularity = item.get("popularity", 50)
+        name = item.get("name", "")
+
+        genres = item.get("genres") or GENRE_FALLBACK.get(name, [])
+
+        raw_popularity = item.get("popularity")
+        popularity = raw_popularity if raw_popularity is not None else 50
 
         all_genres.extend(genres)
         popularity_scores.append(popularity)
 
+        image_url = None
+        if item.get("images"):
+            image_url = item["images"][0].get("url")
+
         artists_data.append(
             {
-                "name": item.get("name"),
+                "name": name,
                 "genres": genres,
                 "popularity": popularity,
-                "image": item.get("images", [{}])[0].get("url")
-                if item.get("images")
-                else None,
+                "image": image_url,
                 "spotify_url": item.get("external_urls", {}).get("spotify"),
             }
         )
@@ -245,7 +281,7 @@ def taste_dna(token: str):
     )
 
     mood_score = compute_mood_score(all_genres)
-    diversity_count = compute_diversity_score(genre_counts)
+    diversity_count = compute_diversity_count(genre_counts)
 
     archetype = get_personality_archetype(
         niche_score=niche_score,
@@ -275,9 +311,10 @@ def get_artist(artist_name: str):
         return {"error": "Artist not found"}
 
     artist = items[0]
+    name = artist.get("name", "")
 
     return {
-        "name": artist.get("name"),
-        "genres": artist.get("genres", []),
+        "name": name,
+        "genres": artist.get("genres") or GENRE_FALLBACK.get(name, []),
         "spotify_url": artist.get("external_urls", {}).get("spotify"),
     }
