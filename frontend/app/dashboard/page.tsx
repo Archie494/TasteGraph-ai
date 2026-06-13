@@ -1,7 +1,32 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+
+const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
+  ssr: false,
+});
+
+interface GraphNode {
+  id: string;
+  name: string;
+  type: string;
+  genres?: string[];
+  image?: string | null;
+  x?: number;
+  y?: number;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+}
+
+interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
 
 interface Artist {
   name: string;
@@ -42,6 +67,7 @@ export default function Dashboard() {
   const token = searchParams.get("token");
 
   const [data, setData] = useState<TasteDNA | null>(null);
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -52,16 +78,48 @@ export default function Dashboard() {
       return;
     }
 
-    fetch(`http://127.0.0.1:8000/taste-dna?token=${token}`)
-      .then((response) => response.json())
-      .then((result) => {
-        setData(result);
+    async function loadDashboard() {
+      try {
+        const tasteResponse = await fetch(
+          `http://127.0.0.1:8000/taste-dna?token=${token}`
+        );
+
+        const tasteResult = await tasteResponse.json();
+
+        if (!tasteResponse.ok || !tasteResult.archetype || !tasteResult.scores) {
+          console.error("Taste DNA backend error:", tasteResult);
+          setError("Failed to load Taste DNA.");
+          setLoading(false);
+          return;
+        }
+
+        setData(tasteResult);
+
+        const graphResponse = await fetch(
+          `http://127.0.0.1:8000/graph-data?token=${token}`
+        );
+
+        const graphResult = await graphResponse.json();
+
+        if (
+          graphResponse.ok &&
+          Array.isArray(graphResult.nodes) &&
+          Array.isArray(graphResult.links)
+        ) {
+          setGraphData(graphResult);
+        } else {
+          console.error("Graph backend error:", graphResult);
+        }
+
         setLoading(false);
-      })
-      .catch(() => {
-        setError("Failed to load Taste DNA.");
+      } catch (err) {
+        console.error("Dashboard load error:", err);
+        setError("Failed to load dashboard.");
         setLoading(false);
-      });
+      }
+    }
+
+    loadDashboard();
   }, [token]);
 
   if (loading) {
@@ -145,32 +203,74 @@ export default function Dashboard() {
             Genre DNA
           </p>
 
-          {Object.entries(data.genre_breakdown).map(([genre, percentage], index) => (
-            <div key={genre} className="mb-5">
-              <div className="flex justify-between text-sm mb-2">
-                <span className="capitalize">{genre}</span>
-                <span
-                  className="font-bold"
-                  style={{
-                    color: GENRE_COLORS[index % GENRE_COLORS.length],
-                  }}
-                >
-                  {percentage}%
-                </span>
-              </div>
+          {Object.entries(data.genre_breakdown).map(
+            ([genre, percentage], index) => (
+              <div key={genre} className="mb-5">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="capitalize">{genre}</span>
+                  <span
+                    className="font-bold"
+                    style={{
+                      color: GENRE_COLORS[index % GENRE_COLORS.length],
+                    }}
+                  >
+                    {percentage}%
+                  </span>
+                </div>
 
-              <div className="h-2 bg-[#0A0E1A] rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${percentage}%`,
-                    background: GENRE_COLORS[index % GENRE_COLORS.length],
-                  }}
-                />
+                <div className="h-2 bg-[#0A0E1A] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${percentage}%`,
+                      background: GENRE_COLORS[index % GENRE_COLORS.length],
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          )}
         </section>
+
+        {graphData && graphData.nodes.length > 0 && (
+          <section className="bg-[#151C30] border border-gray-700 rounded-3xl p-6 mb-6">
+            <p className="text-gray-400 uppercase tracking-widest text-xs mb-5">
+              Taste Graph
+            </p>
+
+            <div className="h-[500px] bg-[#0A0E1A] rounded-2xl overflow-hidden">
+              <ForceGraph2D
+                graphData={graphData}
+                width={900}
+                height={500}
+                cooldownTicks={150}
+                nodeRelSize={8}
+                d3AlphaDecay={0.02}
+                d3VelocityDecay={0.25}
+                linkDistance={120}
+                linkWidth={1.5}
+                nodeLabel={(node: any) => node.name}
+                linkColor={() => "rgba(255,255,255,0.15)"}
+                nodeCanvasObject={(node: any, ctx) => {
+                  const label = node.name || node.id;
+                  const isArtist = node.type === "artist";
+                  const radius = isArtist ? 10 : 6;
+
+                  ctx.beginPath();
+                  ctx.arc(node.x || 0, node.y || 0, radius, 0, 2 * Math.PI);
+                  ctx.fillStyle = isArtist ? "#7C3AED" : "#10B981";
+                  ctx.fill();
+
+                  ctx.font = `${isArtist ? 12 : 9}px Sans-Serif`;
+                  ctx.textAlign = "center";
+                  ctx.textBaseline = "top";
+                  ctx.fillStyle = "#ffffff";
+                  ctx.fillText(label, node.x || 0, (node.y || 0) + radius + 4);
+                }}
+              />
+            </div>
+          </section>
+        )}
 
         <section>
           <p className="text-gray-400 uppercase tracking-widest text-xs mb-5">
