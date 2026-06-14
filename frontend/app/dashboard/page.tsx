@@ -238,23 +238,26 @@ export default function Dashboard() {
               Taste Graph
             </p>
 
-            <div className="h-[500px] bg-[#0A0E1A] rounded-2xl overflow-hidden">
+            <div className="h-[750px] bg-[#0A0E1A] rounded-2xl overflow-hidden">
               <ForceGraph2D
                 graphData={graphData}
-                width={900}
-                height={500}
+                width={1100}
+                height={750}
                 cooldownTicks={150}
                 nodeRelSize={8}
                 d3AlphaDecay={0.02}
                 d3VelocityDecay={0.25}
-                linkDistance={120}
+                linkDistance={220}
                 linkWidth={1.5}
                 nodeLabel={(node: any) => node.name}
                 linkColor={() => "rgba(255,255,255,0.15)"}
                 nodeCanvasObject={(node: any, ctx) => {
-                  const label = node.name || node.id;
+                  const label =
+                    node.type === "artist"
+                      ? node.name
+                      : "";
                   const isArtist = node.type === "artist";
-                  const radius = isArtist ? 10 : 6;
+                  const radius = isArtist ? 16 : 8;
 
                   ctx.beginPath();
                   ctx.arc(node.x || 0, node.y || 0, radius, 0, 2 * Math.PI);

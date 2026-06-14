@@ -301,6 +301,50 @@ def taste_dna(token: str):
         },
     }
 
+@app.get("/graph-data")
+def graph_data(token: str):
+    sp = spotipy.Spotify(auth=token)
+    results = sp.current_user_top_artists(limit=20, time_range="medium_term")
+
+    nodes = []
+    links = []
+
+    artist_genres = {}
+
+    for item in results.get("items", []):
+        name = item.get("name", "")
+        genres = item.get("genres") or GENRE_FALLBACK.get(name, [])
+
+        artist_genres[name] = genres
+
+        nodes.append({
+            "id": name,
+            "name": name,
+            "type": "artist",
+            "genres": genres,
+            "image": item.get("images", [{}])[0].get("url") if item.get("images") else None,
+        })
+
+    genre_set = sorted({genre for genres in artist_genres.values() for genre in genres})
+
+    for genre in genre_set:
+        nodes.append({
+            "id": genre,
+            "name": genre,
+            "type": "genre",
+        })
+
+    for artist, genres in artist_genres.items():
+        for genre in genres:
+            links.append({
+                "source": artist,
+                "target": genre,
+            })
+
+    return {
+        "nodes": nodes,
+        "links": links,
+    }
 
 @app.get("/artist/{artist_name}")
 def get_artist(artist_name: str):
